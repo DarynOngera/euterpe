@@ -1,4 +1,4 @@
-defmodule MyMusicServer.PlaylistManager do
+defmodule Euterpe.PlaylistManager do
   @moduledoc """
   GenServer managing playlists.
   Persists to data/playlists.json.
@@ -34,7 +34,7 @@ defmodule MyMusicServer.PlaylistManager do
 
   @impl true
   def init(_) do
-    playlists = MyMusicServer.Persistence.load(@data_file)
+    playlists = Euterpe.Persistence.load(@data_file)
     Logger.info("PlaylistManager loaded #{map_size(playlists)} playlists from disk")
     {:ok, playlists}
   end
@@ -90,6 +90,6 @@ defmodule MyMusicServer.PlaylistManager do
   end
 
   defp persist(playlists) do
-    MyMusicServer.Persistence.save(@data_file, playlists)
+    Euterpe.Persistence.save(@data_file, playlists)
   end
 end

@@ -1,4 +1,4 @@
-defmodule MyMusicServer.Player do
+defmodule Euterpe.Player do
   @moduledoc """
   Simple playback state manager.
   """

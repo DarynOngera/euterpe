@@ -1,4 +1,4 @@
-# MyMusicServer
+# Euterpe
 
 A **production-ready music server** built on Elixir/OTP, featuring real-time audio processing, adaptive streaming, and full observability.
 
@@ -66,6 +66,7 @@ mix run --no-halt
 ```
 
 - API: `http://localhost:5000`
+- **Public Player UI: `http://localhost:5000/player`**
 - Admin Dashboard: `http://localhost:5000/admin`
 - Prometheus Metrics: `http://localhost:9568/metrics`
 
@@ -82,6 +83,7 @@ mix run --no-halt
 | GET | `/stats` | Job counts by status |
 | GET | `/events` | **SSE** — real-time job events |
 | GET | `/admin` | HTML admin dashboard |
+| GET | `/player` | **Public music player UI** |
 
 ### Jobs
 
@@ -191,6 +193,43 @@ Open `http://localhost:5000/admin` in a browser to see:
 - **Job Stats** — Queued / Running / Done / Failed counts
 
 All data updates in real-time via SSE + polling.
+
+---
+
+## Public Player UI
+
+Open `http://localhost:5000/player` for the full-featured music player interface. No build step, no external dependencies — pure HTML/CSS/JS served directly by the server.
+
+### Features
+
+- **Browse & Search** — Grid view of all songs with live search filtering
+- **Persistent Bottom Player** — Play/pause, previous/next, progress scrubber, volume control
+- **Playback Queue** — Slide-out queue drawer; add songs, reorder by clicking, remove items
+- **Drag & Drop Upload** — Drop audio files into the modal, or click to browse; title auto-fills from filename
+- **Song Detail Modal** — Click the ⋮ menu on any song card to see:
+  - Full metadata (duration, bitrate, sample rate, channels, format)
+  - **Play**, **Add to Queue**, **Add to Playlist**
+  - **Transcode** — queue format conversion
+  - **Waveform** — generate PNG visualization
+  - **HLS Stream** — generate adaptive streaming segments
+  - **Download** — get the original file
+  - **Delete** — remove from catalog (with confirmation)
+- **Playlist Management** — Create playlists, add songs via dropdown, remove songs, play all
+- **Real-Time Job Toasts** — When you queue transcode/waveform/HLS, a toast appears on completion with action links:
+  - Transcode done → **"Download"** button
+  - Waveform done → **"View"** button (opens image overlay)
+  - HLS done → **"Play Stream"** button
+- **Mobile Responsive** — Collapsible sidebar, touch-friendly controls, adaptive grid
+
+### Using the Player
+
+1. **Upload** — Click "+ Upload", drag an audio file, enter title/artist (title auto-fills), click Upload
+2. **Play** — Click any song card, or the green play overlay on hover
+3. **Queue** — Open a song's detail modal → "Add to Queue", then open the queue drawer from the bottom player
+4. **Transcode** — Detail modal → "Transcode"; wait for toast with Download link
+5. **Waveform** — Detail modal → "Waveform"; toast opens the PNG in an overlay
+6. **HLS** — Detail modal → "HLS Stream"; toast provides the stream URL
+7. **Playlist** — Sidebar "+ New Playlist" → enter name → click song's "Add to Playlist"
 
 ---
 

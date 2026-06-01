@@ -73,7 +73,7 @@ defmodule Core.Workers.JobQueue do
     updated_queue = :queue.in(job.id, queue)
     updated_jobs = Map.put(jobs, job.id, job)
 
-    MyMusicServer.EventBus.publish(:jobs, %{
+    Euterpe.EventBus.publish(:jobs, %{
       event: "queued",
       job_id: job.id,
       task: get_task(job.payload),
@@ -99,7 +99,7 @@ defmodule Core.Workers.JobQueue do
         updated_jobs = Map.put(jobs, job_id, updated_job)
         new_state = %{state | queue: remaining_queue, jobs: updated_jobs}
 
-        MyMusicServer.EventBus.publish(:jobs, %{
+        Euterpe.EventBus.publish(:jobs, %{
           event: "claimed",
           job_id: job_id,
           task: get_task(job.payload),
@@ -125,7 +125,7 @@ defmodule Core.Workers.JobQueue do
 
         updated_jobs = Map.put(jobs, id, updated_job)
 
-        MyMusicServer.EventBus.publish(:jobs, %{
+        Euterpe.EventBus.publish(:jobs, %{
           event: "done",
           job_id: id,
           task: get_task(job.payload),
@@ -133,7 +133,7 @@ defmodule Core.Workers.JobQueue do
           result: result
         })
 
-        MyMusicServer.EventBus.publish({:job, id}, %{
+        Euterpe.EventBus.publish({:job, id}, %{
           event: "done",
           job_id: id,
           status: "done",
@@ -161,7 +161,7 @@ defmodule Core.Workers.JobQueue do
 
           updated_jobs = Map.put(jobs, id, updated_job)
 
-          MyMusicServer.EventBus.publish(:jobs, %{
+          Euterpe.EventBus.publish(:jobs, %{
             event: "failed",
             job_id: id,
             task: get_task(job.payload),
@@ -169,7 +169,7 @@ defmodule Core.Workers.JobQueue do
             reason: reason
           })
 
-          MyMusicServer.EventBus.publish({:job, id}, %{
+          Euterpe.EventBus.publish({:job, id}, %{
             event: "failed",
             job_id: id,
             status: "failed",
@@ -196,7 +196,7 @@ defmodule Core.Workers.JobQueue do
             "Job #{id} failed (attempt #{job.attempt}/#{job.max_attempts}), retrying in #{backoff}ms"
           )
 
-          MyMusicServer.EventBus.publish(:jobs, %{
+          Euterpe.EventBus.publish(:jobs, %{
             event: "retrying",
             job_id: id,
             task: get_task(job.payload),

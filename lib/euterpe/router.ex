@@ -1,4 +1,4 @@
-defmodule MyMusicServer.Router do
+defmodule Euterpe.Router do
   @moduledoc """
   HTTP router for the music server.
   """
@@ -27,7 +27,7 @@ defmodule MyMusicServer.Router do
   add_job_routes()
 
   get "/songs" do
-    songs = MyMusicServer.Library.all_songs()
+    songs = Euterpe.Library.all_songs()
 
     conn
     |> put_resp_content_type("application/json")
@@ -35,7 +35,7 @@ defmodule MyMusicServer.Router do
   end
 
   get "/songs/:id" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
         conn
         |> put_resp_content_type("application/json")
@@ -51,7 +51,7 @@ defmodule MyMusicServer.Router do
   post "/songs" do
     case conn.body_params do
       %{"file" => %Plug.Upload{} = upload, "title" => title, "artist" => artist} ->
-        {:ok, song_id, path} = MyMusicServer.Storage.save_upload(upload)
+        {:ok, song_id, path} = Euterpe.Storage.save_upload(upload)
 
         song = %{
           "id" => song_id,
@@ -63,7 +63,7 @@ defmodule MyMusicServer.Router do
           "status" => "processing"
         }
 
-        MyMusicServer.Library.add_song(song)
+        Euterpe.Library.add_song(song)
 
         JobQueue.submit(%{
           "task" => "extract_metadata",
@@ -87,10 +87,10 @@ defmodule MyMusicServer.Router do
   end
 
   delete "/songs/:id" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
-        MyMusicServer.Storage.delete_file(song["file_path"])
-        MyMusicServer.Library.remove_song(id)
+        Euterpe.Storage.delete_file(song["file_path"])
+        Euterpe.Library.remove_song(id)
         send_resp(conn, 204, "")
 
       {:error, :not_found} ->
@@ -101,7 +101,7 @@ defmodule MyMusicServer.Router do
   end
 
   post "/songs/:id/transcode" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
         target_format = conn.body_params["format"] || ".mp3"
 
@@ -124,7 +124,7 @@ defmodule MyMusicServer.Router do
   end
 
   post "/songs/:id/waveform" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
         JobQueue.submit(%{
           "task" => "generate_waveform",
@@ -144,7 +144,7 @@ defmodule MyMusicServer.Router do
   end
 
   post "/songs/:id/hls" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
         JobQueue.submit(%{
           "task" => "generate_hls",
@@ -165,7 +165,7 @@ defmodule MyMusicServer.Router do
 
   get "/songs/:id/stream.m3u8" do
     hls_dir =
-      Path.join(Application.get_env(:my_music_server, :upload_dir, "uploads"), "#{id}_hls")
+      Path.join(Application.get_env(:euterpe, :upload_dir, "uploads"), "#{id}_hls")
 
     playlist_path = Path.join(hls_dir, "playlist.m3u8")
 
@@ -187,7 +187,7 @@ defmodule MyMusicServer.Router do
 
   get "/songs/:id/stream/:segment" do
     hls_dir =
-      Path.join(Application.get_env(:my_music_server, :upload_dir, "uploads"), "#{id}_hls")
+      Path.join(Application.get_env(:euterpe, :upload_dir, "uploads"), "#{id}_hls")
 
     segment_path = Path.join(hls_dir, segment)
 
@@ -203,7 +203,7 @@ defmodule MyMusicServer.Router do
   end
 
   get "/songs/:id/download" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
         if File.exists?(song["file_path"]) do
           conn
@@ -227,9 +227,9 @@ defmodule MyMusicServer.Router do
   end
 
   post "/songs/:id/play" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
-        MyMusicServer.Player.play(id)
+        Euterpe.Player.play(id)
 
         conn
         |> put_resp_content_type("application/json")
@@ -243,7 +243,7 @@ defmodule MyMusicServer.Router do
   end
 
   post "/player/stop" do
-    MyMusicServer.Player.stop()
+    Euterpe.Player.stop()
 
     conn
     |> put_resp_content_type("application/json")
@@ -251,14 +251,14 @@ defmodule MyMusicServer.Router do
   end
 
   get "/player/current" do
-    case MyMusicServer.Player.current() do
+    case Euterpe.Player.current() do
       nil ->
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(200, Jason.encode!(%{current: nil, status: "idle"}))
 
       song_id ->
-        {:ok, song} = MyMusicServer.Library.get_song(song_id)
+        {:ok, song} = Euterpe.Library.get_song(song_id)
 
         conn
         |> put_resp_content_type("application/json")
@@ -267,7 +267,7 @@ defmodule MyMusicServer.Router do
   end
 
   get "/playlists" do
-    playlists = MyMusicServer.PlaylistManager.all()
+    playlists = Euterpe.PlaylistManager.all()
 
     conn
     |> put_resp_content_type("application/json")
@@ -275,12 +275,12 @@ defmodule MyMusicServer.Router do
   end
 
   get "/playlists/:id" do
-    case MyMusicServer.PlaylistManager.get(id) do
+    case Euterpe.PlaylistManager.get(id) do
       {:ok, playlist} ->
         songs =
           playlist.song_ids
           |> Enum.map(fn sid ->
-            case MyMusicServer.Library.get_song(sid) do
+            case Euterpe.Library.get_song(sid) do
               {:ok, song} -> song
               _ -> nil
             end
@@ -303,14 +303,14 @@ defmodule MyMusicServer.Router do
   post "/playlists" do
     case conn.body_params do
       %{"name" => name, "song_ids" => song_ids} when is_list(song_ids) ->
-        {:ok, playlist} = MyMusicServer.PlaylistManager.create(name, song_ids)
+        {:ok, playlist} = Euterpe.PlaylistManager.create(name, song_ids)
 
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(201, Jason.encode!(playlist))
 
       %{"name" => name} ->
-        {:ok, playlist} = MyMusicServer.PlaylistManager.create(name, [])
+        {:ok, playlist} = Euterpe.PlaylistManager.create(name, [])
 
         conn
         |> put_resp_content_type("application/json")
@@ -326,7 +326,7 @@ defmodule MyMusicServer.Router do
   put "/playlists/:id" do
     case conn.body_params do
       %{"song_ids" => song_ids} when is_list(song_ids) ->
-        case MyMusicServer.PlaylistManager.update(id, song_ids) do
+        case Euterpe.PlaylistManager.update(id, song_ids) do
           {:ok, playlist} ->
             conn
             |> put_resp_content_type("application/json")
@@ -346,7 +346,7 @@ defmodule MyMusicServer.Router do
   end
 
   delete "/playlists/:id" do
-    case MyMusicServer.PlaylistManager.delete(id) do
+    case Euterpe.PlaylistManager.delete(id) do
       :ok ->
         send_resp(conn, 204, "")
 
@@ -369,7 +369,13 @@ defmodule MyMusicServer.Router do
   get "/admin" do
     conn
     |> put_resp_content_type("text/html")
-    |> send_resp(200, MyMusicServer.AdminDashboard.html())
+    |> send_resp(200, Euterpe.AdminDashboard.html())
+  end
+
+  get "/player" do
+    conn
+    |> put_resp_content_type("text/html")
+    |> send_resp(200, Euterpe.PublicPage.html())
   end
 
   match _ do
@@ -379,7 +385,7 @@ defmodule MyMusicServer.Router do
   end
 
   defp stream_events(conn) do
-    MyMusicServer.EventBus.subscribe(:jobs)
+    Euterpe.EventBus.subscribe(:jobs)
 
     conn =
       case Plug.Conn.chunk(conn, "event: connected\ndata: \"\"\n\n") do

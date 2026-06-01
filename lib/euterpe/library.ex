@@ -1,4 +1,4 @@
-defmodule MyMusicServer.Library do
+defmodule Euterpe.Library do
   @moduledoc """
   GenServer managing the song catalog.
   Persists catalog to data/catalog.json.
@@ -34,7 +34,7 @@ defmodule MyMusicServer.Library do
 
   @impl true
   def init(_) do
-    catalog = MyMusicServer.Persistence.load(@data_file)
+    catalog = Euterpe.Persistence.load(@data_file)
     Logger.info("Library loaded #{map_size(catalog)} songs from disk")
     {:ok, catalog}
   end
@@ -80,6 +80,6 @@ defmodule MyMusicServer.Library do
   end
 
   defp persist(catalog) do
-    MyMusicServer.Persistence.save(@data_file, catalog)
+    Euterpe.Persistence.save(@data_file, catalog)
   end
 end

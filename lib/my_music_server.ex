@@ -1,6 +1,6 @@
-defmodule MyMusicServer do
+defmodule Euterpe do
   @moduledoc """
-  MyMusicServer - A music server built on Elixir Server Core.
+  Euterpe - A music server built on Elixir Server Core.
 
   Provides REST API for:
   - Uploading and cataloging audio files

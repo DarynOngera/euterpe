@@ -1,4 +1,4 @@
-defmodule MyMusicServer.MusicWorker do
+defmodule Euterpe.MusicWorker do
   @moduledoc """
   Background job worker for audio processing.
   """
@@ -46,7 +46,7 @@ defmodule MyMusicServer.MusicWorker do
       %{job_id: job.id, attempt: job.attempt, payload: job.payload}
     )
 
-    MyMusicServer.EventBus.publish(:jobs, %{
+    Euterpe.EventBus.publish(:jobs, %{
       event: "started",
       job_id: job.id,
       task: get_task(job.payload),
@@ -69,7 +69,7 @@ defmodule MyMusicServer.MusicWorker do
 
       JobQueue.mark_done(job.id, result)
 
-      MyMusicServer.EventBus.publish(:jobs, %{
+      Euterpe.EventBus.publish(:jobs, %{
         event: "completed",
         job_id: job.id,
         task: get_task(job.payload),
@@ -78,7 +78,7 @@ defmodule MyMusicServer.MusicWorker do
         result: result
       })
 
-      MyMusicServer.EventBus.publish({:job, job.id}, %{
+      Euterpe.EventBus.publish({:job, job.id}, %{
         event: "completed",
         job_id: job.id,
         duration_ms: duration_ms,
@@ -106,7 +106,7 @@ defmodule MyMusicServer.MusicWorker do
         Logger.error("MusicWorker ##{worker_id} failed job #{job.id}: #{message}")
         JobQueue.mark_failed(job.id, error_details)
 
-        MyMusicServer.EventBus.publish(:jobs, %{
+        Euterpe.EventBus.publish(:jobs, %{
           event: "errored",
           job_id: job.id,
           task: get_task(job.payload),
@@ -115,7 +115,7 @@ defmodule MyMusicServer.MusicWorker do
           error: message
         })
 
-        MyMusicServer.EventBus.publish({:job, job.id}, %{
+        Euterpe.EventBus.publish({:job, job.id}, %{
           event: "errored",
           job_id: job.id,
           duration_ms: duration_ms,
@@ -149,11 +149,11 @@ defmodule MyMusicServer.MusicWorker do
   end
 
   defp extract_metadata_job(song_id) do
-    case MyMusicServer.Library.get_song(song_id) do
+    case Euterpe.Library.get_song(song_id) do
       {:ok, song} ->
-        metadata = MyMusicServer.Audio.extract_metadata(song["file_path"])
+        metadata = Euterpe.Audio.extract_metadata(song["file_path"])
 
-        MyMusicServer.Library.update_song(song_id, %{
+        Euterpe.Library.update_song(song_id, %{
           "metadata" => metadata,
           "status" => "ready"
         })
@@ -171,7 +171,7 @@ defmodule MyMusicServer.MusicWorker do
   end
 
   defp transcode_job(song_id, input_path, format) do
-    case MyMusicServer.Audio.transcode(input_path, format) do
+    case Euterpe.Audio.transcode(input_path, format) do
       {:ok, output_path} ->
         %{
           status: "completed",
@@ -187,7 +187,7 @@ defmodule MyMusicServer.MusicWorker do
   end
 
   defp waveform_job(song_id, input_path) do
-    case MyMusicServer.Audio.generate_waveform(input_path) do
+    case Euterpe.Audio.generate_waveform(input_path) do
       {:ok, output_path} ->
         %{
           status: "completed",
@@ -202,7 +202,7 @@ defmodule MyMusicServer.MusicWorker do
   end
 
   defp hls_job(song_id, input_path) do
-    case MyMusicServer.Audio.generate_hls(input_path) do
+    case Euterpe.Audio.generate_hls(input_path) do
       {:ok, playlist_path} ->
         %{
           status: "completed",

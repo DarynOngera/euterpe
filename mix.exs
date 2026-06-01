@@ -1,9 +1,9 @@
-defmodule MyMusicServer.MixProject do
+defmodule Euterpe.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :my_music_server,
+      app: :euterpe,
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
@@ -14,7 +14,7 @@ defmodule MyMusicServer.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {MyMusicServer.Application, []}
+      mod: {Euterpe.Application, []}
     ]
   end
 

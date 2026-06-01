@@ -25,8 +25,8 @@ This method lets you use Elixir Server Core as a dependency without modifying it
 ### Step 1: Create a New Project
 
 ```bash
-mix new my_music_server --sup
-cd my_music_server
+mix new euterpe --sup
+cd euterpe
 ```
 
 ### Step 2: Add Elixir Server Core as Dependency
@@ -68,8 +68,8 @@ You have two approaches for creating a custom router:
 #### Approach A: Using Helper Macros
 
 ```elixir
-# lib/my_music_server/router.ex
-defmodule MyMusicServer.Router do
+# lib/euterpe/router.ex
+defmodule Euterpe.Router do
   use Plug.Router
   require Logger
 
@@ -89,7 +89,7 @@ defmodule MyMusicServer.Router do
 
   # Add your custom routes
   get "/songs" do
-    songs = MyMusicServer.Library.all_songs()
+    songs = Euterpe.Library.all_songs()
     
     conn
     |> put_resp_content_type("application/json")
@@ -97,7 +97,7 @@ defmodule MyMusicServer.Router do
   end
   
   get "/songs/:id" do
-    case MyMusicServer.Library.get_song(id) do
+    case Euterpe.Library.get_song(id) do
       {:ok, song} ->
         conn
         |> put_resp_content_type("application/json")
@@ -111,7 +111,7 @@ defmodule MyMusicServer.Router do
   end
   
   post "/songs/:id/play" do
-    case MyMusicServer.Player.play(id) do
+    case Euterpe.Player.play(id) do
       :ok ->
         send_resp(conn, 200, "Playing song #{id}")
       
@@ -125,7 +125,7 @@ defmodule MyMusicServer.Router do
   post "/playlists" do
     case conn.body_params do
       %{"name" => name, "song_ids" => ids} ->
-        {:ok, playlist} = MyMusicServer.PlaylistManager.create(name, ids)
+        {:ok, playlist} = Euterpe.PlaylistManager.create(name, ids)
         
         conn
         |> put_resp_content_type("application/json")
@@ -150,8 +150,8 @@ end
 Sometimes it's simpler to just copy the routes you need:
 
 ```elixir
-# lib/my_music_server/router.ex
-defmodule MyMusicServer.Router do
+# lib/euterpe/router.ex
+defmodule Euterpe.Router do
   use Plug.Router
   require Logger
   alias Core.Workers.JobQueue
@@ -189,8 +189,8 @@ end
 If you need custom job processing logic:
 
 ```elixir
-# lib/my_music_server/music_worker.ex
-defmodule MyMusicServer.MusicWorker do
+# lib/euterpe/music_worker.ex
+defmodule Euterpe.MusicWorker do
   use GenServer
   require Logger
   alias Core.Workers.JobQueue
@@ -326,8 +326,8 @@ end
 ### Step 5: Set Up Your Application
 
 ```elixir
-# lib/my_music_server/application.ex
-defmodule MyMusicServer.Application do
+# lib/euterpe/application.ex
+defmodule Euterpe.Application do
   use Application
   require Logger
 
@@ -340,25 +340,25 @@ defmodule MyMusicServer.Application do
       Core.Workers.JobQueue,
       
       # Your custom worker (or use Core.Workers.Worker)
-      MyMusicServer.MusicWorker,
+      Euterpe.MusicWorker,
       
       # HTTP server with your custom router
       {Plug.Cowboy, 
         scheme: :http, 
-        plug: MyMusicServer.Router, 
+        plug: Euterpe.Router, 
         options: [port: port, ip: {0, 0, 0, 0}]
       },
       
       # Your domain-specific services
-      MyMusicServer.Library,
-      MyMusicServer.Player,
-      MyMusicServer.PlaylistManager
+      Euterpe.Library,
+      Euterpe.Player,
+      Euterpe.PlaylistManager
     ]
 
     Logger.info("Starting Music Server on port #{port}")
     Logger.info("http://localhost:#{port}")
 
-    opts = [strategy: :one_for_one, name: MyMusicServer.Supervisor]
+    opts = [strategy: :one_for_one, name: Euterpe.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end
@@ -402,24 +402,24 @@ Use this method if you need to modify core framework functionality.
 ### Step 1: Fork the Repository
 
 ```bash
-git clone https://github.com/DarynOngera/elixir_server_core.git my_music_server
-cd my_music_server
+git clone https://github.com/DarynOngera/elixir_server_core.git euterpe
+cd euterpe
 
 # Update remote
 git remote rename origin upstream
-git remote add origin https://github.com/yourusername/my_music_server.git
+git remote add origin https://github.com/yourusername/euterpe.git
 ```
 
 ### Step 2: Rename the Project
 
 ```elixir
 # mix.exs
-defmodule MyMusicServer.MixProject do
+defmodule Euterpe.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :my_music_server,  # Changed from :elixir_server_core
+      app: :euterpe,  # Changed from :elixir_server_core
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
@@ -430,7 +430,7 @@ defmodule MyMusicServer.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {MyMusicServer.Application, []}  # Changed
+      mod: {Euterpe.Application, []}  # Changed
     ]
   end
 
@@ -476,16 +476,16 @@ Here's a complete, working music server implementation:
 ### Project Structure
 
 ```
-my_music_server/
+euterpe/
 ├── lib/
-│   ├── my_music_server/
+│   ├── euterpe/
 │   │   ├── application.ex      # Supervision tree
 │   │   ├── router.ex            # HTTP routes
 │   │   ├── music_worker.ex      # Background jobs
 │   │   ├── library.ex           # Song database
 │   │   ├── player.ex            # Playback control
 │   │   └── playlist_manager.ex  # Playlist logic
-│   └── my_music_server.ex       # Module root
+│   └── euterpe.ex       # Module root
 ├── mix.exs
 └── README.md
 ```
@@ -493,8 +493,8 @@ my_music_server/
 ### Library Module
 
 ```elixir
-# lib/my_music_server/library.ex
-defmodule MyMusicServer.Library do
+# lib/euterpe/library.ex
+defmodule Euterpe.Library do
   use GenServer
 
   def start_link(_) do
@@ -538,8 +538,8 @@ end
 ### Player Module
 
 ```elixir
-# lib/my_music_server/player.ex
-defmodule MyMusicServer.Player do
+# lib/euterpe/player.ex
+defmodule Euterpe.Player do
   use GenServer
 
   def start_link(_) do
@@ -563,7 +563,7 @@ defmodule MyMusicServer.Player do
 
   @impl true
   def handle_call({:play, song_id}, _from, state) do
-    case MyMusicServer.Library.get_song(song_id) do
+    case Euterpe.Library.get_song(song_id) do
       {:ok, _song} ->
         {:reply, :ok, %{state | current: song_id}}
       
@@ -587,8 +587,8 @@ end
 ### Playlist Manager
 
 ```elixir
-# lib/my_music_server/playlist_manager.ex
-defmodule MyMusicServer.PlaylistManager do
+# lib/euterpe/playlist_manager.ex
+defmodule Euterpe.PlaylistManager do
   use GenServer
 
   def start_link(_) do
@@ -702,25 +702,25 @@ mix deps.update elixir_server_core
 
 ```elixir
 # config/config.exs
-config :my_music_server,
+config :euterpe,
   port: 5000,
   music_directory: "/path/to/music",
   worker_poll_interval: 1000
 
 # In your application
-port = Application.get_env(:my_music_server, :port)
+port = Application.get_env(:euterpe, :port)
 ```
 
 ### 5. Testing Your Fork
 
 ```elixir
-# test/my_music_server_test.exs
-defmodule MyMusicServerTest do
+# test/euterpe_test.exs
+defmodule EuterpeTest do
   use ExUnit.Case
   alias Core.Workers.JobQueue
 
   setup do
-    {:ok, _} = Application.ensure_all_started(:my_music_server)
+    {:ok, _} = Application.ensure_all_started(:euterpe)
     :ok
   end
 

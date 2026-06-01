@@ -1,4 +1,4 @@
-defmodule MyMusicServer.AdminDashboard do
+defmodule Euterpe.AdminDashboard do
   @moduledoc """
   Pure HTML/CSS/JS admin dashboard served at /admin.
   No external dependencies — entirely self-contained.
@@ -11,7 +11,7 @@ defmodule MyMusicServer.AdminDashboard do
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>MyMusicServer Admin</title>
+      <title>Euterpe Admin</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -113,7 +113,7 @@ defmodule MyMusicServer.AdminDashboard do
     <body>
       <div class="container">
         <header>
-          <h1>MyMusicServer Admin</h1>
+          <h1>Euterpe Admin</h1>
           <div class="status-line">
             <span class="pulse"></span>
             <span id="connection-status" class="online">Connected</span>

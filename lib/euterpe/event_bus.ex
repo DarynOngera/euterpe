@@ -1,4 +1,4 @@
-defmodule MyMusicServer.EventBus do
+defmodule Euterpe.EventBus do
   @moduledoc """
   Pub/sub event bus using the built-in Registry.
 

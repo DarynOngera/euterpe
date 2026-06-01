@@ -1,4 +1,4 @@
-# MyMusicServer API Guide
+# Euterpe API Guide
 
 ## Getting Started
 
