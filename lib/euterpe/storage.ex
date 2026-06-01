@@ -1,10 +1,10 @@
-defmodule MyMusicServer.Storage do
+defmodule Euterpe.Storage do
   @moduledoc """
   Handles file uploads and storage.
   """
 
   def save_upload(%Plug.Upload{path: tmp_path, filename: original_filename}) do
-    upload_dir = Application.get_env(:my_music_server, :upload_dir, "uploads")
+    upload_dir = Application.get_env(:euterpe, :upload_dir, "uploads")
     File.mkdir_p!(upload_dir)
 
     ext = Path.extname(original_filename)

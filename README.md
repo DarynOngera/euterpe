@@ -1,4 +1,4 @@
-# MyMusicServer
+# Euterpe
 
 A **production-ready music server** built on Elixir/OTP, featuring real-time audio processing, adaptive streaming, and full observability.
 

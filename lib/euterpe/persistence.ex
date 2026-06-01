@@ -1,4 +1,4 @@
-defmodule MyMusicServer.Persistence do
+defmodule Euterpe.Persistence do
   @moduledoc """
   Simple JSON file persistence helper.
   """

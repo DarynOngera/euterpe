@@ -1,8 +1,8 @@
-defmodule MyMusicServerTest do
+defmodule EuterpeTest do
   use ExUnit.Case
   import Plug.Test
   import Plug.Conn
-  alias MyMusicServer.Router
+  alias Euterpe.Router
 
   @opts Router.init([])
 

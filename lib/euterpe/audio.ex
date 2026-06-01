@@ -1,4 +1,4 @@
-defmodule MyMusicServer.Audio do
+defmodule Euterpe.Audio do
   @moduledoc """
   Wrapper around ffmpeg/ffprobe for audio processing.
   """
@@ -41,7 +41,7 @@ defmodule MyMusicServer.Audio do
   end
 
   def transcode(input_path, target_format) do
-    upload_dir = Application.get_env(:my_music_server, :upload_dir, "uploads")
+    upload_dir = Application.get_env(:euterpe, :upload_dir, "uploads")
     base = Path.rootname(Path.basename(input_path))
     output_path = Path.join(upload_dir, "#{base}_transcoded#{target_format}")
 
@@ -63,7 +63,7 @@ defmodule MyMusicServer.Audio do
   end
 
   def generate_waveform(input_path) do
-    upload_dir = Application.get_env(:my_music_server, :upload_dir, "uploads")
+    upload_dir = Application.get_env(:euterpe, :upload_dir, "uploads")
     base = Path.rootname(Path.basename(input_path))
     output_path = Path.join(upload_dir, "#{base}_waveform.png")
 
@@ -89,7 +89,7 @@ defmodule MyMusicServer.Audio do
   end
 
   def generate_hls(input_path) do
-    upload_dir = Application.get_env(:my_music_server, :upload_dir, "uploads")
+    upload_dir = Application.get_env(:euterpe, :upload_dir, "uploads")
     base = Path.rootname(Path.basename(input_path))
     hls_dir = Path.join(upload_dir, "#{base}_hls")
     File.mkdir_p!(hls_dir)
