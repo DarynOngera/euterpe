@@ -1,0 +1,27 @@
+{
+  "35": {
+    "artist": "Gz",
+    "file_path": "uploads/35.wav",
+    "format": ".wav",
+    "id": "35",
+    "status": "processing",
+    "title": "Chingli Moja",
+    "uploaded_at": "2026-06-01T22:07:34.536027Z"
+  },
+  "581": {
+    "id": "581",
+    "status": "ready",
+    "format": ".wav",
+    "title": "Chingli Moja",
+    "metadata": {
+      "duration": 254.714292,
+      "bitrate": 2304021,
+      "channels": 2,
+      "format_name": "wav",
+      "sample_rate": 48000
+    },
+    "file_path": "uploads/581.wav",
+    "artist": "Gz",
+    "uploaded_at": "2026-06-01T22:17:45.666523Z"
+  }
+}

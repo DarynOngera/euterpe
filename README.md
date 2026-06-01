@@ -1,309 +1,757 @@
-# MyMusicServer
+# Elixir Server Core
 
-A **production-ready music server** built on Elixir/OTP, featuring real-time audio processing, adaptive streaming, and full observability.
+An **open-source, production-oriented Elixir HTTP server framework** designed with **reliability, observability, and modular architecture** as first-class concerns. This framework can be forked to create specialized servers, such as Music servers, PDF servers, or custom domain-specific services.
 
-Forked from [ElixirServerCore](https://github.com/DarynOngera/ElixirServerCore), this server demonstrates how the core framework extends into domain-specific applications with minimal core changes.
+At its core, the system leverages **Elixir and OTP supervision trees** to ensure fault isolation and automatic recovery from failures. Application components such as the HTTP server and background workers are supervised independently, allowing the system to remain available even when individual processes crash.
+
+Observability is designed into the framework, with **Telemetry** instrumentation for request and job events. Metrics can optionally be exposed via **Prometheus** and visualized using **Grafana** (integration not yet implemented), providing a foundation for real-time operational insight in forked servers.
+
+The framework emphasizes clarity over abstraction, avoiding unnecessary dependencies while adhering to backend best practices. Its modular design allows extension into specialized servers, distributed systems, alerting pipelines, or containerized deployments.
 
 ---
 
 ## Features
 
-- **Audio Upload & Cataloging** — Upload WAV, MP3, FLAC, OGG with automatic metadata extraction
-- **Background Processing** — Transcoding, waveform generation, and HLS streaming via ffmpeg
-- **Real-Time Job Progress** — Server-Sent Events (SSE) push live job status to clients
-- **HLS Adaptive Streaming** — HTTP Live Streaming for browser playback
-- **Playlist Management** — Full CRUD with song enrichment
-- **Playback State** — Simple now-playing API
-- **Admin Dashboard** — Real-time HTML dashboard at `/admin`
-- **Prometheus Metrics** — Scrapable metrics at `http://localhost:9568/metrics`
-- **JSON Persistence** — Catalog and playlists survive restarts
-- **OTP Supervision** — Fault-tolerant architecture with automatic recovery
+* Forkable server framework for domain-specific services
+* HTTP server using Plug + Cowboy
+* OTP supervision trees for fault tolerance
+* Background job queue with automatic worker execution
+* In-memory job tracking with full lifecycle management
+* Observability via Telemetry
+* Optional Prometheus + Grafana integration (not implemented)
+* RESTful API with JSON support
+* Health check endpoint
+* Modular and extensible architecture
 
 ---
 
-## Architecture
+## High-Level Architecture
 
 ```
-Client ──HTTP──▶ Router
-                      │
-                      ├── JobQueue (GenServer)
-                      │   ├── Queue: Job IDs
-                      │   └── Jobs: Job Data Map
-                      │
-                      ├── WorkerPool (Supervisor)
-                      │   └── MusicWorker xN (GenServer)
-                      │       └── ffmpeg / ffprobe
-                      │
-                      ├── Library (GenServer) ──▶ data/catalog.json
-                      ├── PlaylistManager (GenServer) ──▶ data/playlists.json
-                      ├── Player (GenServer)
-                      ├── EventBus (Registry)
-                      └── Telemetry ──▶ Prometheus (port 9568)
+Client ──HTTP──▶ Router ──▶ OTP Supervision Tree
+                               │
+                               ├── JobQueue (GenServer)
+                               │   ├── Queue: Job IDs
+                               │   └── Jobs: Job Data Map
+                               │
+                               ├── Worker (GenServer)
+                               │   └── Polls & Executes Jobs
+                               │
+                               └── Telemetry Events
+                                   │
+                                   ▼
+                              /metrics (optional)
+                              Prometheus → Grafana
 ```
 
 ---
 
-## Quick Start
+## Job Lifecycle
+
+Jobs progress through the following states:
+
+1. **`:queued`** - Job submitted and waiting for a worker
+2. **`:running`** - Job claimed by a worker and being processed
+3. **`:done`** - Job completed successfully with a result
+4. **`:failed`** - Job encountered an error during processing
+
+Jobs remain in the queue throughout their lifecycle, allowing you to track their complete history and status via the API. The worker polls the queue every second, claims the next available job, executes it, and updates its status accordingly.
+
+---
+
+## Project Structure
+
+```text
+elixir_server_core/
+├── lib/
+│   ├── core/
+│   │   ├── http/
+│   │   │   └── router.ex              # HTTP routing and endpoints
+│   │   ├── workers/
+│   │   │   ├── job.ex                 # Job struct definition
+│   │   │   ├── job_queue.ex           # Job queue GenServer
+│   │   │   └── worker.ex              # Background job worker
+│   │   └── capability/                # Optional reusable capabilities
+│   │       ├── http.ex                # Alternative HTTP capability
+│   │       ├── work_queue.ex          # Work queue capability
+│   │       ├── metrics.ex             # Telemetry metrics definitions
+│   │       └── server_template.ex     # Template for forked servers
+│   └── elixir_server_core/
+│       └── application.ex             # Main application supervisor
+├── config/
+│   └── config.exs
+├── test/
+│   ├── elixir_server_core_test.exs   # Integration tests
+│   └── test_helper.exs
+├── mix.exs                            # Project dependencies
+├── mix.lock
+└── README.md
+```
+
+---
+
+## Getting Started
 
 ### Requirements
 
-- Elixir 1.14+
-- Erlang/OTP 26+
-- ffmpeg + ffprobe installed
+* Elixir 1.14 or newer
+* Erlang/OTP 26 or newer
+
+---
 
 ### Setup
 
 ```bash
-cd ElixirServerCore
+# Clone the repository
+git clone <repository-url>
+cd elixir_server_core
+
+# Install dependencies
 mix deps.get
+
+# Compile the project
 mix compile
 ```
 
-### Run
+---
+
+### Running the Server
 
 ```bash
 mix run --no-halt
 ```
 
-- API: `http://localhost:5000`
-- Admin Dashboard: `http://localhost:5000/admin`
-- Prometheus Metrics: `http://localhost:9568/metrics`
+Default address:
+```
+http://localhost:4000
+```
+
+You should see:
+```
+[info] Starting server on port 4000
+[info] http://localhost:4000
+[info] Worker started
+```
 
 ---
 
 ## API Endpoints
 
-### Core
+### Overview
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Server status |
-| GET | `/health` | Health check (OK / DEGRADED) |
-| GET | `/stats` | Job counts by status |
-| GET | `/events` | **SSE** — real-time job events |
-| GET | `/admin` | HTML admin dashboard |
-
-### Jobs
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/jobs` | Submit a job |
-| POST | `/jobs/schedule` | Schedule a future job |
-| GET | `/jobs` | List jobs (filter, paginate) |
-| GET | `/jobs/:id` | Get specific job |
-
-### Songs
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/songs` | Upload audio file |
-| GET | `/songs` | List all songs |
-| GET | `/songs/:id` | Get song details |
-| DELETE | `/songs/:id` | Remove song |
-| GET | `/songs/:id/download` | Download original file |
-| POST | `/songs/:id/transcode` | Queue transcode job |
-| POST | `/songs/:id/waveform` | Queue waveform job |
-| POST | `/songs/:id/hls` | **Queue HLS generation** |
-| GET | `/songs/:id/stream.m3u8` | **HLS playlist** |
-| GET | `/songs/:id/stream/:segment` | **HLS segment** |
-
-### Player
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/songs/:id/play` | Set now playing |
-| POST | `/player/stop` | Stop playback |
-| GET | `/player/current` | Get current song |
-
-### Playlists
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/playlists` | List all |
-| POST | `/playlists` | Create |
-| GET | `/playlists/:id` | Get with songs |
-| PUT | `/playlists/:id` | Update songs |
-| DELETE | `/playlists/:id` | Delete |
+| Method | Endpoint       | Description                          |
+|--------|---------------|--------------------------------------|
+| GET    | `/`           | Root endpoint - server status        |
+| GET    | `/health`     | Health check                         |
+| POST   | `/jobs`       | Submit a new job                     |
+| GET    | `/jobs`       | List all jobs                        |
+| GET    | `/jobs/:id`   | Get a specific job by ID             |
 
 ---
 
-## Real-Time Events (SSE)
+### Endpoint Details
 
-Connect to `GET /events` to receive live job updates:
+#### `GET /` - Root Endpoint
+
+Returns a simple status message.
+
+**Request:**
+```bash
+curl http://localhost:4000/
+```
+
+**Response:**
+```
+Server is running
+```
+
+---
+
+#### `GET /health` - Health Check
+
+Returns the health status of the server.
+
+**Request:**
+```bash
+curl http://localhost:4000/health
+```
+
+**Response:**
+```
+OK
+```
+
+If the JobQueue process is not running, returns:
+```
+DEGRADED
+```
+
+---
+
+#### `POST /jobs` - Submit a New Job
+
+Submits a new job to the queue for processing.
+
+**Request:**
+```bash
+curl -X POST http://localhost:4000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"task": "process_data", "value": 42}}'
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "message": "Job accepted",
+  "job_id": 123
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Missing 'payload' field"
+}
+```
+
+**Examples:**
 
 ```bash
-curl http://localhost:5000/events
-```
+# Simple task
+curl -X POST http://localhost:4000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"task": "send_email", "recipient": "user@example.com"}}'
 
-**Events emitted:**
+# Complex payload
+curl -X POST http://localhost:4000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"task": "generate_report", "filters": {"date_range": "2024-01-01:2024-12-31", "type": "sales"}}}'
 
-| Event | When | Payload |
-|-------|------|---------|
-| `queued` | Job submitted | `{job_id, task}` |
-| `claimed` | Worker picked up job | `{job_id, task, attempt}` |
-| `started` | Worker begins execution | `{job_id, task, worker_id, attempt}` |
-| `completed` | Job finished successfully | `{job_id, task, duration_ms, result}` |
-| `errored` | Job raised exception | `{job_id, task, duration_ms, error}` |
-| `failed` | Job permanently failed | `{job_id, task, reason}` |
-| `retrying` | Job scheduled for retry | `{job_id, task, retry_in_ms}` |
-
-**JavaScript usage:**
-```javascript
-const es = new EventSource('http://localhost:5000/events');
-es.onmessage = (e) => {
-  const data = JSON.parse(e.data);
-  console.log('Job', data.job_id, data.event);
-};
+# Batch processing
+curl -X POST http://localhost:4000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"task": "process_batch", "items": [1, 2, 3, 4, 5]}}'
 ```
 
 ---
 
-## HLS Streaming Workflow
+#### `GET /jobs` - List All Jobs
+
+Returns all jobs in the queue with their current status.
+
+**Request:**
+```bash
+curl http://localhost:4000/jobs
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": 123,
+    "payload": {"task": "process_data", "value": 42},
+    "status": "done",
+    "inserted_at": "2025-12-28T17:24:48.957749Z",
+    "started_at": "2025-12-28T17:24:49.566352Z",
+    "finished_at": "2025-12-28T17:24:49.667314Z",
+    "result": {
+      "status": "completed",
+      "job_id": 123,
+      "processed_at": "2025-12-28T17:24:49.667198Z"
+    }
+  },
+  {
+    "id": 124,
+    "payload": {"task": "send_email"},
+    "status": "running",
+    "inserted_at": "2025-12-28T17:25:01.123456Z",
+    "started_at": "2025-12-28T17:25:02.234567Z",
+    "finished_at": null,
+    "result": null
+  },
+  {
+    "id": 125,
+    "payload": {"task": "generate_report"},
+    "status": "queued",
+    "inserted_at": "2025-12-28T17:25:05.345678Z",
+    "started_at": null,
+    "finished_at": null,
+    "result": null
+  }
+]
+```
+
+**Pretty Print Response:**
+```bash
+curl http://localhost:4000/jobs | jq
+```
+
+**Filter by Status (using jq):**
+```bash
+# Show only completed jobs
+curl -s http://localhost:4000/jobs | jq '[.[] | select(.status == "done")]'
+
+# Show only running jobs
+curl -s http://localhost:4000/jobs | jq '[.[] | select(.status == "running")]'
+
+# Count jobs by status
+curl -s http://localhost:4000/jobs | jq 'group_by(.status) | map({status: .[0].status, count: length})'
+```
+
+---
+
+#### `GET /jobs/:id` - Get Specific Job
+
+Returns detailed information about a specific job.
+
+**Request:**
+```bash
+curl http://localhost:4000/jobs/123
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": 123,
+  "payload": {"task": "process_data", "value": 42},
+  "status": "done",
+  "inserted_at": "2025-12-28T17:24:48.957749Z",
+  "started_at": "2025-12-28T17:24:49.566352Z",
+  "finished_at": "2025-12-28T17:24:49.667314Z",
+  "result": {
+    "status": "completed",
+    "job_id": 123,
+    "processed_at": "2025-12-28T17:24:49.667198Z"
+  }
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "error": "Job not found"
+}
+```
+
+**Examples:**
 
 ```bash
-# 1. Upload a song
-SONG=$(curl -s -X POST http://localhost:5000/songs \
-  -F "file=@song.mp3" -F "title=Song" -F "artist=Artist")
-SONG_ID=$(echo $SONG | jq -r '.song_id')
+# Get job details
+curl http://localhost:4000/jobs/123
 
-# 2. Wait for metadata extraction, then generate HLS
-curl -X POST http://localhost:5000/songs/$SONG_ID/hls
+# Pretty print with jq
+curl http://localhost:4000/jobs/123 | jq
 
-# 3. Poll jobs until HLS is done
-curl http://localhost:5000/jobs
+# Extract specific fields
+curl -s http://localhost:4000/jobs/123 | jq '{id: .id, status: .status, result: .result}'
 
-# 4. Stream in browser
-# <audio controls src="http://localhost:5000/songs/$SONG_ID/stream.m3u8"></audio>
-# Or use hls.js for wider browser support
-```
-
----
-
-## Admin Dashboard
-
-Open `http://localhost:5000/admin` in a browser to see:
-
-- **System Health** — Worker count, queue depth, active jobs
-- **Catalog Stats** — Total songs, playlists, processing count
-- **Now Playing** — Current playback with stop control
-- **Live Jobs** — Currently running jobs with status badges
-- **Recent Events** — Live event log from SSE stream
-- **Job Stats** — Queued / Running / Done / Failed counts
-
-All data updates in real-time via SSE + polling.
-
----
-
-## Background Job Types
-
-| Task | Description |
-|------|-------------|
-| `extract_metadata` | ffprobe: duration, bitrate, sample rate, channels |
-| `transcode` | ffmpeg: convert to target format |
-| `generate_waveform` | ffmpeg: generate PNG waveform |
-| `generate_hls` | ffmpeg: create HLS segments + playlist |
-
----
-
-## Observability
-
-### Prometheus Metrics
-
-Scrape `http://localhost:9568/metrics`:
-
-```
-core_job_count{event_name="core_job_stop"} 42
-core_job_duration_ms{event_name="core_job_stop"} 15
-server_http_request_count{event_name="server_http_stop"} 128
-```
-
-### Telemetry Events
-
-- `[:server, :http, :start]` — HTTP request started
-- `[:server, :http, :stop]` — HTTP request completed
-- `[:core, :job, :start]` — Job execution started
-- `[:core, :job, :stop]` — Job execution completed
-- `[:core, :job, :error]` — Job execution failed
-
----
-
-## Configuration
-
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `PORT` | 5000 | HTTP server port |
-| `WORKER_POOL_SIZE` | CPU cores | Background worker count |
-| `UPLOAD_DIR` | uploads | Audio file storage |
-| `DATA_DIR` | data | JSON persistence directory |
-
----
-
-## Persistence
-
-- **Catalog** — `data/catalog.json` (songs with metadata)
-- **Playlists** — `data/playlists.json`
-- **Uploads** — `uploads/` directory
-- **HLS** — `uploads/{song_id}_hls/` directory
-- **Jobs** — in-memory only (ephemeral)
-
----
-
-## Testing
-
-```bash
-# Run tests
-mix test
-
-# Run with coverage
-mix test --cover
+# Check if job is complete
+curl -s http://localhost:4000/jobs/123 | jq '.status == "done"'
 ```
 
 ---
 
 ## Complete Workflow Example
 
+### 1. Submit Multiple Jobs
+
 ```bash
-# 1. Upload
-SONG=$(curl -s -X POST http://localhost:5000/songs \
-  -F "file=@/path/to/song.mp3" \
-  -F "title=My Song" \
-  -F "artist=My Artist")
-SONG_ID=$(echo $SONG | jq -r '.song_id')
-
-# 2. Wait for metadata, then check song
-curl http://localhost:5000/songs/$SONG_ID | jq
-
-# 3. Transcode to OGG
-curl -X POST http://localhost:5000/songs/$SONG_ID/transcode \
+# Submit job 1
+curl -X POST http://localhost:4000/jobs \
   -H "Content-Type: application/json" \
-  -d '{"format":".ogg"}'
+  -d '{"payload": {"task": "backup_database"}}'
 
-# 4. Generate waveform
-curl -X POST http://localhost:5000/songs/$SONG_ID/waveform
-
-# 5. Generate HLS for streaming
-curl -X POST http://localhost:5000/songs/$SONG_ID/hls
-
-# 6. Create playlist
-curl -X POST http://localhost:5000/playlists \
+# Submit job 2
+curl -X POST http://localhost:4000/jobs \
   -H "Content-Type: application/json" \
-  -d "{\"name\":\"Favorites\",\"song_ids\":[\"$SONG_ID\"]}"
+  -d '{"payload": {"task": "send_notifications"}}'
 
-# 7. Play
-curl -X POST http://localhost:5000/songs/$SONG_ID/play
-
-# 8. Check admin dashboard in browser
-# open http://localhost:5000/admin
-
-# 9. Watch real-time events
-curl http://localhost:5000/events
+# Submit job 3
+curl -X POST http://localhost:4000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"task": "generate_reports"}}'
 ```
+
+### 2. Monitor Job Progress
+
+```bash
+# List all jobs
+curl http://localhost:4000/jobs | jq
+
+# Watch jobs in real-time (refresh every 2 seconds)
+watch -n 2 'curl -s http://localhost:4000/jobs | jq'
+```
+
+### 3. Check Specific Job Status
+
+```bash
+# Get job by ID (replace with actual job ID)
+curl http://localhost:4000/jobs/1 | jq
+
+# Poll until job is done
+while true; do
+  STATUS=$(curl -s http://localhost:4000/jobs/1 | jq -r '.status')
+  echo "Job status: $STATUS"
+  if [ "$STATUS" = "done" ] || [ "$STATUS" = "failed" ]; then
+    break
+  fi
+  sleep 1
+done
+```
+
+### 4. Analyze Results
+
+```bash
+# Get all completed jobs with their results
+curl -s http://localhost:4000/jobs | jq '[.[] | select(.status == "done") | {id: .id, task: .payload.task, result: .result}]'
+
+# Calculate average processing time
+curl -s http://localhost:4000/jobs | jq '[.[] | select(.started_at != null and .finished_at != null)] | map((.finished_at | fromdateiso8601) - (.started_at | fromdateiso8601)) | add / length'
+```
+
+---
+
+## Testing
+
+### Run Tests
+
+```bash
+# Run all tests
+mix test
+
+# Run tests with coverage
+mix test --cover
+
+# Run specific test file
+mix test test/elixir_server_core_test.exs
+
+# Run tests in watch mode (requires mix_test_watch)
+mix test.watch
+```
+
+### Manual Testing Script
+
+Create a file `test_api.sh`:
+
+```bash
+#!/bin/bash
+
+echo "=== Testing Elixir Server Core API ==="
+echo
+
+echo "1. Health Check"
+curl -s http://localhost:4000/health
+echo -e "\n"
+
+echo "2. Submit Job 1"
+JOB1=$(curl -s -X POST http://localhost:4000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"task": "test_job_1"}}')
+echo $JOB1 | jq
+JOB1_ID=$(echo $JOB1 | jq -r '.job_id')
+echo
+
+echo "3. Submit Job 2"
+JOB2=$(curl -s -X POST http://localhost:4000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"task": "test_job_2", "priority": "high"}}')
+echo $JOB2 | jq
+JOB2_ID=$(echo $JOB2 | jq -r '.job_id')
+echo
+
+echo "4. Wait for processing..."
+sleep 2
+echo
+
+echo "5. Get All Jobs"
+curl -s http://localhost:4000/jobs | jq
+echo
+
+echo "6. Get Job 1 Details"
+curl -s http://localhost:4000/jobs/$JOB1_ID | jq
+echo
+
+echo "7. Get Job 2 Details"
+curl -s http://localhost:4000/jobs/$JOB2_ID | jq
+echo
+
+echo "=== Test Complete ==="
+```
+
+Make it executable and run:
+
+```bash
+chmod +x test_api.sh
+./test_api.sh
+```
+
+---
+
+## Forking the Server
+
+You can fork this server to create domain-specific applications. Here's an example:
+
+### Creating a Music Server
+
+```elixir
+defmodule MyMusicServer.Application do
+  use Application
+
+  def start(_type, _args) do
+    children = [
+      # Core capabilities
+      Core.Workers.JobQueue,
+      Core.Workers.Worker,
+      
+      # Custom HTTP router with music-specific endpoints
+      {Plug.Cowboy, 
+        scheme: :http, 
+        plug: MyMusicServer.Router, 
+        options: [port: 5000]
+      },
+      
+      # Add your domain-specific services
+      MyMusicServer.Library,
+      MyMusicServer.Player,
+      MyMusicServer.Playlist
+    ]
+
+    opts = [strategy: :one_for_one, name: MyMusicServer.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+end
+```
+
+### Extending Worker Behavior
+
+Override the `perform_work/1` function to add custom job handling:
+
+```elixir
+defmodule MyMusicServer.Worker do
+  use GenServer
+  alias Core.Workers.JobQueue
+
+  # ... (same setup as Core.Workers.Worker)
+
+  defp perform_work(job) do
+    case job.payload do
+      %{"task" => "transcode_audio", "file" => file} ->
+        transcode_audio(file)
+      
+      %{"task" => "generate_waveform", "track_id" => id} ->
+        generate_waveform(id)
+      
+      %{"task" => "sync_library"} ->
+        sync_library()
+      
+      _ ->
+        %{error: "Unknown task type"}
+    end
+  end
+
+  defp transcode_audio(file) do
+    # Custom audio processing logic
+    %{status: "transcoded", output: "#{file}.mp3"}
+  end
+  
+  # ... more custom handlers
+end
+```
+
+---
+
+## Architecture Decisions
+
+### Why GenServer for Job Queue?
+
+- **Serialized Access**: Ensures thread-safe operations on the queue
+- **State Management**: Natural fit for maintaining queue and job state
+- **Supervision**: Automatic restart on crashes
+- **Telemetry Integration**: Easy to add metrics and monitoring
+
+### Why Keep Jobs in Queue?
+
+- **Full History**: All jobs remain queryable after completion
+- **Simpler Design**: No need for separate storage (ETS, DB)
+- **Atomic Updates**: GenServer calls ensure consistency
+- **Debugging**: Easy to inspect entire job lifecycle
+
+### Job Storage Structure
+
+```elixir
+%{
+  queue: :queue.new(),     # Queue of job IDs (FIFO)
+  jobs: %{                 # Map of job ID to Job struct
+    123 => %Job{...},
+    124 => %Job{...}
+  }
+}
+```
+
+This dual structure allows:
+- Fast FIFO queue operations
+- O(1) job lookup by ID
+- In-place status updates
+- Full job history retention
+
+---
+
+## Performance Considerations
+
+### Current Limitations
+
+- **In-Memory Only**: Jobs are lost on server restart
+- **No Pagination**: `/jobs` endpoint returns all jobs
+- **Single Worker**: Only one job processes at a time
+- **Polling Overhead**: Worker polls every second
+
+### Scaling Strategies
+
+For production deployments, consider:
+
+1. **Persistent Storage**: Add PostgreSQL or Redis for job persistence
+2. **Multiple Workers**: Spawn worker pool for parallel processing
+3. **Pagination**: Add query parameters to `/jobs` endpoint
+4. **Job Cleanup**: Archive completed jobs after N days
+5. **Priority Queue**: Implement job prioritization
+6. **Distributed Queue**: Use RabbitMQ or Kafka for distributed systems
+
+---
+
+## Configuration
+
+### Port Configuration
+
+Edit `lib/elixir_server_core/application.ex`:
+
+```elixir
+port = System.get_env("PORT", "4000") |> String.to_integer()
+```
+
+Then run:
+```bash
+PORT=8080 mix run --no-halt
+```
+
+### Worker Poll Interval
+
+Edit `lib/core/workers/worker.ex`:
+
+```elixir
+@poll_interval 500  # Poll every 500ms instead of 1000ms
+```
+
+---
+
+## Observability
+
+### Logging
+
+The server logs key events:
+
+```elixir
+[info] Starting server on port 4000
+[info] Worker started
+[info] Executing job 123
+[info] Job 123 completed successfully
+[error] Job 124 failed: %ArgumentError{message: "invalid data"}
+```
+
+### Telemetry Events
+
+The following telemetry events are emitted:
+
+- `[:server, :http, :start]` - HTTP request started
+- `[:server, :http, :stop]` - HTTP request completed
+- `[:core, :job, :start]` - Job execution started (not yet implemented)
+- `[:core, :job, :stop]` - Job execution completed (not yet implemented)
+- `[:core, :job, :error]` - Job execution failed (not yet implemented)
+
+### Adding Prometheus Integration
+
+To expose metrics, add to your supervision tree:
+
+```elixir
+children = [
+  # ... existing children
+  {TelemetryMetricsPrometheus, 
+    metrics: Core.Capability.Metrics.metrics()
+  }
+]
+```
+
+Then access metrics at `http://localhost:9568/metrics`
+
+---
+
+## Troubleshooting
+
+### Server won't start
+
+```bash
+# Check if port is already in use
+lsof -i :4000
+
+# Kill existing process
+kill -9 <PID>
+
+# Or use a different port
+PORT=4001 mix run --no-halt
+```
+
+### Jobs not processing
+
+```bash
+# Check if worker is running
+curl http://localhost:4000/health
+
+# View logs for errors
+mix run --no-halt
+
+# Verify job was submitted
+curl http://localhost:4000/jobs | jq
+```
+
+### JSON encoding errors
+
+Ensure all structs used in responses have `@derive Jason.Encoder`:
+
+```elixir
+defmodule MyStruct do
+  @derive Jason.Encoder
+  defstruct [:field1, :field2]
+end
+```
+
+---
+
+## Open Source and Contributions
+
+This project is **fully open source** under the MIT License. Contributions are welcome in the form of:
+
+* Adding metrics and instrumentation
+* Building Prometheus + Grafana integration
+* Implementing domain-specific servers (music, PDF, etc.)
+* Adding persistent storage backends
+* Improving documentation and tests
+* Performance optimizations
+* Security enhancements
+
+### Contributing Guidelines
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make your changes with tests
+4. Run tests: `mix test`
+5. Commit: `git commit -am 'Add my feature'`
+6. Push: `git push origin feature/my-feature`
+7. Open a Pull Request
 
 ---
 
 ## License
 
-MIT License — forked from ElixirServerCore
+MIT License - see LICENSE file for details
 
 ---
 
@@ -311,4 +759,29 @@ MIT License — forked from ElixirServerCore
 
 **DarynOngera**
 
-For issues or feature requests, open an issue on GitHub.
+For questions, issues, or feature requests, please open an issue on GitHub.
+
+---
+
+## Resources
+
+- [Elixir Documentation](https://elixir-lang.org/docs.html)
+- [Plug Documentation](https://hexdocs.pm/plug/)
+- [GenServer Guide](https://elixir-lang.org/getting-started/mix-otp/genserver.html)
+- [Telemetry Documentation](https://hexdocs.pm/telemetry/)
+- [Jason Documentation](https://hexdocs.pm/jason/)
+
+---
+
+## Roadmap
+
+- [ ] Add persistent storage backend (PostgreSQL)
+- [ ] Implement job priorities
+- [ ] Add worker pool for parallel processing
+- [ ] Build Prometheus integration
+- [ ] Add job scheduling (cron-like)
+- [ ] Implement job retries with exponential backoff
+- [ ] Add authentication and authorization
+- [ ] Create admin dashboard UI
+- [ ] Docker and Kubernetes deployment guides
+- [ ] Performance benchmarking suite

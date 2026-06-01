@@ -6,7 +6,8 @@ defmodule Core.Telemetry.Metrics do
       Metrics.counter("core.job.count",
         event_name: [:core, :job, :stop]
       ),
-      Metrics.counter("core.job.duration_ms",
+
+      Metrics.summary("core.job.duration",
         event_name: [:core, :job, :stop],
         measurement: :duration,
         unit: {:native, :millisecond}
@@ -14,3 +15,4 @@ defmodule Core.Telemetry.Metrics do
     ]
   end
 end
+

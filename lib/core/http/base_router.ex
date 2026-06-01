@@ -30,19 +30,13 @@ defmodule Core.HTTP.BaseRouter do
       end
   """
 
-  # Unhygienic conn variable so it matches Plug.Router's generated parameter
-  defp conn_var, do: Macro.var(:conn, nil)
-  defp id_var, do: Macro.var(:id, nil)
-
   @doc """
   Injects a GET / route returning a plain-text status message.
   """
   defmacro add_root_route do
-    conn = conn_var()
-
     quote do
       get "/" do
-        send_resp(unquote(conn), 200, "Server is running")
+        send_resp(conn, 200, "Server is running")
       end
     end
   end
@@ -51,14 +45,12 @@ defmodule Core.HTTP.BaseRouter do
   Injects GET /health — returns JSON {status: "OK"} or {status: "DEGRADED"} (503).
   """
   defmacro add_health_route do
-    conn = conn_var()
-
     quote do
       get "/health" do
         alive = Process.whereis(Core.Workers.JobQueue) != nil
         {status, code} = if alive, do: {"OK", 200}, else: {"DEGRADED", 503}
 
-        unquote(conn)
+        conn
         |> put_resp_content_type("application/json")
         |> send_resp(code, Jason.encode!(%{status: status}))
       end
@@ -69,11 +61,9 @@ defmodule Core.HTTP.BaseRouter do
   Injects GET /stats — returns job counts by status.
   """
   defmacro add_stats_route do
-    conn = conn_var()
-
     quote do
       get "/stats" do
-        unquote(conn)
+        conn
         |> put_resp_content_type("application/json")
         |> send_resp(200, Jason.encode!(Core.Workers.JobQueue.stats()))
       end
@@ -89,108 +79,94 @@ defmodule Core.HTTP.BaseRouter do
     - per_page=N (default 50, max 200)
   """
   defmacro add_job_routes do
-    conn = conn_var()
-    id = id_var()
-
     quote do
       post "/jobs" do
-        case unquote(conn).body_params do
+        case conn.body_params do
           %{"payload" => payload} when is_map(payload) ->
             {:ok, id} = Core.Workers.JobQueue.submit(payload)
 
-            unquote(conn)
+            conn
             |> put_resp_content_type("application/json")
             |> send_resp(202, Jason.encode!(%{message: "Job accepted", job_id: id}))
 
           %{"payload" => _} ->
-            unquote(conn)
+            conn
             |> put_resp_content_type("application/json")
             |> send_resp(400, Jason.encode!(%{error: "'payload' must be a JSON object"}))
 
           _ ->
-            unquote(conn)
+            conn
             |> put_resp_content_type("application/json")
             |> send_resp(400, Jason.encode!(%{error: "Missing 'payload' field"}))
         end
       end
 
       post "/jobs/schedule" do
-        with %{"payload" => payload, "run_at" => run_at_str} <- unquote(conn).body_params,
+        with %{"payload" => payload, "run_at" => run_at_str} <- conn.body_params,
              {:ok, run_at, _} <- DateTime.from_iso8601(run_at_str) do
           {:ok, id} = Core.Workers.JobQueue.submit_at(payload, run_at)
 
-          unquote(conn)
+          conn
           |> put_resp_content_type("application/json")
-          |> send_resp(
-            202,
-            Jason.encode!(%{message: "Job scheduled", job_id: id, run_at: run_at_str})
-          )
+          |> send_resp(202, Jason.encode!(%{message: "Job scheduled", job_id: id, run_at: run_at_str}))
         else
           _ ->
-            unquote(conn)
+            conn
             |> put_resp_content_type("application/json")
-            |> send_resp(
-              400,
-              Jason.encode!(%{error: "Required: payload (object), run_at (ISO8601 string)"})
-            )
+            |> send_resp(400, Jason.encode!(%{error: "Required: payload (object), run_at (ISO8601 string)"}))
         end
       end
 
       get "/jobs" do
-        try do
-          params = unquote(conn).query_params
+        params = conn.query_params
 
-          opts =
-            []
-            |> then(fn o ->
-              case params["status"] do
-                nil -> o
-                s -> Keyword.put(o, :status, String.to_existing_atom(s))
-              end
-            end)
-            |> then(fn o ->
-              case params["page"] do
-                nil -> o
-                p -> Keyword.put(o, :page, String.to_integer(p))
-              end
-            end)
-            |> then(fn o ->
-              case params["per_page"] do
-                nil -> o
-                pp -> Keyword.put(o, :per_page, String.to_integer(pp))
-              end
-            end)
+        opts =
+          []
+          |> then(fn o ->
+            case params["status"] do
+              nil -> o
+              s -> Keyword.put(o, :status, String.to_existing_atom(s))
+            end
+          end)
+          |> then(fn o ->
+            case params["page"] do
+              nil -> o
+              p -> Keyword.put(o, :page, String.to_integer(p))
+            end
+          end)
+          |> then(fn o ->
+            case params["per_page"] do
+              nil -> o
+              pp -> Keyword.put(o, :per_page, String.to_integer(pp))
+            end
+          end)
 
-          jobs = Core.Workers.JobQueue.all(opts)
+        jobs = Core.Workers.JobQueue.all(opts)
 
-          unquote(conn)
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(jobs))
+      rescue
+        ArgumentError ->
+          conn
           |> put_resp_content_type("application/json")
-          |> send_resp(200, Jason.encode!(jobs))
-        rescue
-          ArgumentError ->
-            unquote(conn)
-            |> put_resp_content_type("application/json")
-            |> send_resp(
-              400,
-              Jason.encode!(%{error: "Invalid status. Valid: queued, running, done, failed"})
-            )
-        end
+          |> send_resp(400, Jason.encode!(%{error: "Invalid status. Valid: queued, running, done, failed"}))
       end
 
       get "/jobs/:id" do
-        with {int_id, ""} <- Integer.parse(unquote(id)),
+        with {int_id, ""} <- Integer.parse(id),
              {:ok, job} <- Core.Workers.JobQueue.get(int_id) do
-          unquote(conn)
+          conn
           |> put_resp_content_type("application/json")
           |> send_resp(200, Jason.encode!(job))
         else
           :error ->
-            unquote(conn)
+            conn
             |> put_resp_content_type("application/json")
             |> send_resp(400, Jason.encode!(%{error: "Job ID must be an integer"}))
 
           {:error, :not_found} ->
-            unquote(conn)
+            conn
             |> put_resp_content_type("application/json")
             |> send_resp(404, Jason.encode!(%{error: "Job not found"}))
         end
